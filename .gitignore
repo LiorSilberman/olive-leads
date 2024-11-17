@@ -6,6 +6,8 @@ __pycache__/
 # C extensions
 *.so
 
+massive-capsule-441421-v6-015968a61a64.json
+
 # Distribution / packaging
 .Python
 build/
