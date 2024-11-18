@@ -5,6 +5,7 @@ from pathlib import Path
 from oauth2client.service_account import ServiceAccountCredentials
 from dotenv import load_dotenv
 import os
+import re
 
 
 load_dotenv()
@@ -57,9 +58,11 @@ def merge_csv_files(directory):
 
     # Iterate over each file in the directory and append it to the dataframe list
     for file in data_dir.glob('*.csv'):
+        base_name = re.sub(r'(\s+\(\d+\))$', '', file.stem) 
+        translated_name = files_translate.get(base_name, file.stem)
         df = pd.read_csv(file)
-        df['קובץ מקור'] = files_translate[file.stem]
-        if 'trial' in file.stem:
+        df['קובץ מקור'] = translated_name
+        if 'trial' in base_name:
             trial_leads = df
 
         dataframes.append(df)

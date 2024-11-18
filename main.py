@@ -1,6 +1,6 @@
 import sys
 import os
-os.environ["QT_QPA_PLATFORM"] = "xcb"
+# os.environ["QT_QPA_PLATFORM"] = "xcb"
 import shutil
 import webbrowser
 import pandas as pd
@@ -10,7 +10,9 @@ from PyQt5.QtGui import QIcon, QPixmap, QFont, QFontDatabase
 from dotenv import load_dotenv
 from qasync import QEventLoop, asyncSlot
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from olive_table import merge_csv_files, authenticate_gsheets, upload_to_gsheets, set_column_order
+from auto_download import login_and_download
 
 class CSVUploaderApp(QWidget):
     def __init__(self):
@@ -30,6 +32,8 @@ class CSVUploaderApp(QWidget):
 
         self.setStyleSheet(f"QWidget {{ background-color: #3d5544; color: #ffffff; font-family: '{self.font_name}'; font-size: 12pt; }}")
 
+       
+
         mainLayout = QVBoxLayout()
         topLayout = QHBoxLayout()  
         topLayout.addStretch(1)  
@@ -42,6 +46,11 @@ class CSVUploaderApp(QWidget):
         topLayout.addWidget(iconLabel)
         topLayout.addStretch(1)  
         mainLayout.addLayout(topLayout)
+
+
+        self.downloadButton = QPushButton(' Arbox-הורד דוחות אוטומטית מ', self)
+        self.downloadButton.clicked.connect(self.start_download)
+        mainLayout.addWidget(self.downloadButton)
 
         self.label = QLabel('בחר קבצים להעלאה:', self)
         mainLayout.addWidget(self.label)
@@ -72,6 +81,27 @@ class CSVUploaderApp(QWidget):
         self.setLayout(mainLayout)
         self.data_directory = self.ensure_data_directory_exists()
         self.files = []
+
+
+    @asyncSlot()
+    async def start_download(self):
+        QMessageBox.information(self, 'התחלת הורדה', 'ההורדות מתחילות כעת...')
+        await asyncio.sleep(0)  # Yield control to ensure UI updates before starting the download
+        try:
+            # Use ThreadPoolExecutor to run the blocking function in a separate thread
+            executor = ThreadPoolExecutor(max_workers=1)
+            loop = asyncio.get_running_loop()
+
+            self.clear_data_directory()
+            await loop.run_in_executor(executor, login_and_download)
+            self.files = [os.path.join(self.data_directory, f) for f in os.listdir(self.data_directory) if os.path.isfile(os.path.join(self.data_directory, f))]
+            await asyncio.sleep(1)
+            QMessageBox.information(self, 'הורדה הושלמה', 'כל הדוחות הורדו בהצלחה.')
+
+            self.processButton.setEnabled(True)
+            self.openSheetButton.setEnabled(False)
+        except Exception as e:
+            QMessageBox.critical(self, 'שגיאה בהורדה', f'אירעה שגיאה במהלך ההורדה: {str(e)}')
 
     @asyncSlot()
     async def upload_files(self):
@@ -131,8 +161,9 @@ class CSVUploaderApp(QWidget):
             }
             th, td {
                 padding: 8px;
-                border: 1px solid black; /* Adds visible borders for table cells */
+                border: 1px solid white; /* Adds visible borders for table cells */
                 vertical-align: middle; /* Ensures text is centered vertically in cells */
+                text-align: center;
             }
             tr:nth-child(even) {
                 background-color: #f2f2f2; /* Alternating row colors for better readability */
@@ -147,27 +178,38 @@ class CSVUploaderApp(QWidget):
         </style>
         """
 
-        # Convert data frames to HTML with enhanced styling
+        # Source effectiveness calculation
         source_effectiveness = df['מקור'].value_counts(normalize=True).sort_values(ascending=False) * 100
-        source_html = source_effectiveness.to_frame().to_html(header=False, border=0)
+        source_effectiveness = source_effectiveness.reset_index(name='אחוזים')
+        source_html = source_effectiveness.to_html(header=True, border=0)
         source_html = source_html.replace('<table>', "<table>")
 
-        subscription_types = df['מנוי'].value_counts()
-        subscriptions_html = subscription_types.to_frame().to_html(header=False, border=0)
+        # Subscription types calculation
+        subscription_types = df['מנוי'].value_counts().reset_index(name='כמות')
+        subscriptions_html = subscription_types.to_html(header=True, border=0)
         subscriptions_html = subscriptions_html.replace('<table>', "<table>")
-
+        
+        # Trial success rate calculation
         if df['עשו ניסיון'].eq('V').sum() > 0:
+            did_trial = df['עשו ניסיון'].eq('V').sum()
+            did_trial_and_members = (df[(df['עשו ניסיון'] == 'V') & df['מנוי'].notna() & (df['מנוי'] != 'ללא')].shape[0])
             trial_success_rate = ((df[(df['עשו ניסיון'] == 'V') & df['מנוי'].notna() & (df['מנוי'] != 'ללא')].shape[0]) / df['עשו ניסיון'].eq('V').sum()) * 100
         else:
             trial_success_rate = 0
 
 
         age_distribution = df['גיל'].mean()
+        
+        # Trials by source calculation
+        trial_by_source = df[df['עשו ניסיון'] == 'V'].groupby('מקור').size().reset_index(name='מספר מתאמנות')
+        trial_by_source_html = trial_by_source.to_html(header=True, border=0)
+        trial_by_source_html = trial_by_source_html.replace('<table>', "<table>")
 
         # Combine all HTML parts with the CSS header
-        stats = f"{css}<div><h2>מקורות הפעילות:</h2>{source_html}</div>" \
+        stats = f"{css}<div><h2>אחוזי קליטה עבור כל מקור: </h2>{source_html}</div>" \
+                f"<div><h2>מספר אימוני ניסיון שהגיעו עבור כל מקור: </h2>{trial_by_source_html}</div>" \
                 f"<div><h2>סוגי מנויים:</h2>{subscriptions_html}</div>" \
-                f"<div><h2>הצלחת שיעורי המרה: {trial_success_rate:.2f}%</h2></div>" \
+                f"<div><h2>הצלחת שיעורי המרה:</h2> <ul><li><h3>מספר המתאמנים שעשו אימון ניסיון: {did_trial}</h3></li><li><h3>מספר מנויים שעשו אימון ניסיון: {did_trial_and_members}</h3></li> <li><h3>הצלחת שיעורי המרה באחוזים: {trial_success_rate:.2f}%</h3></li></ul></div>" \
                 f"<div><h2>ממוצע גילאים: {age_distribution:.2f}</h2></div>"
         return stats
 
