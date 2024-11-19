@@ -4,7 +4,7 @@ import os
 import shutil
 import webbrowser
 import pandas as pd
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QFileDialog, QMessageBox, QTextEdit
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QFileDialog, QMessageBox, QTextEdit, QSizePolicy
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIcon, QPixmap, QFont, QFontDatabase
 from dotenv import load_dotenv
@@ -27,64 +27,98 @@ class CSVUploaderApp(QWidget):
         self.initUI()
 
     def initUI(self):
+        # Window settings
         self.setGeometry(300, 300, 1200, 800)
         self.setWindowTitle('Google Sheets - העלאה ל')
         self.setWindowIcon(QIcon(self.resource_path('logo.png')))
+        self.setStyleSheet(f"""
+            QWidget {{
+                background-color: #3d5544;
+                color: #ffffff;
+                font-family: '{self.font_name}';
+                font-size: 12pt;
+            }}
+            QPushButton {{
+                background-color: #2d4735;
+                border: 1px solid #ffffff;
+                padding: 10px;
+                border-radius: 5px;
+                font-size: 12pt;
+            }}
+            QPushButton:hover {{
+                background-color: #4b7155;
+            }}
+            QPushButton:disabled {{
+                background-color: #5c5c5c;
+                border-color: #5c5c5c;
+            }}
+            QLabel {{
+                margin: 10px 0;
+            }}
+        """)
 
-        self.setStyleSheet(f"QWidget {{ background-color: #3d5544; color: #ffffff; font-family: '{self.font_name}'; font-size: 12pt; }}")
-
-       
-
+        # Main layout
         mainLayout = QVBoxLayout()
-        topLayout = QHBoxLayout()  
-        topLayout.addStretch(1)  
-        
+
+        # Logo layout
+        logoLayout = QHBoxLayout()
+        logoLayout.addStretch(1)
         iconLabel = QLabel(self)
         pixmap = QPixmap(self.resource_path('logo.png'))
-        scaled_pixmap = pixmap.scaled(300, 300, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        scaled_pixmap = pixmap.scaled(250, 250, Qt.KeepAspectRatio, Qt.SmoothTransformation)
         iconLabel.setPixmap(scaled_pixmap)
-        iconLabel.setFixedSize(300, 300)
-        topLayout.addWidget(iconLabel)
-        topLayout.addStretch(1) 
-        mainLayout.addLayout(topLayout)
+        logoLayout.addWidget(iconLabel)
+        logoLayout.addStretch(1)
+        mainLayout.addLayout(logoLayout)
 
+        # Buttons layout
+        buttonLayout = QHBoxLayout()
+        self.downloadButton = QPushButton('Arbox - הורד דוחות אוטומטית מ', self)
+        self.uploadButton = QPushButton('בחירת קבצים', self)
+        self.processButton = QPushButton('Google Sheets - העלה ל', self)
+        self.openSheetButton = QPushButton('Google Sheets - פתח את', self)
+        self.processButton.setEnabled(False)  # Disabled by default
+        self.openSheetButton.setEnabled(True)  # Disabled by default
+        buttonLayout.addWidget(self.downloadButton)
+        buttonLayout.addWidget(self.processButton)
+        buttonLayout.addWidget(self.uploadButton)
+        buttonLayout.addWidget(self.openSheetButton)
+        mainLayout.addLayout(buttonLayout)
 
-        self.downloadButton = QPushButton(' Arbox-הורד דוחות אוטומטית מ', self)
-        self.downloadButton.clicked.connect(self.start_download)
-        mainLayout.addWidget(self.downloadButton)
-
-        self.successLabel = QLabel('', self)  # Empty label for success message
-        self.successLabel.setAlignment(Qt.AlignCenter)  # Center align the text
-        self.successLabel.setStyleSheet("color: green; font-size: 14pt;")  # Style the text
+        # Success label
+        self.successLabel = QLabel('', self)
+        self.successLabel.setAlignment(Qt.AlignCenter)
+        self.successLabel.setStyleSheet("color: green; font-size: 14pt; font-weight: bold;")
         mainLayout.addWidget(self.successLabel)
 
-        self.label = QLabel('בחר קבצים להעלאה:', self)
-        mainLayout.addWidget(self.label)
+        # Instructions label
+        instructionsLabel = QLabel(
+            'בחר קבצים להעלאה:\n'
+            '1. לקוחות פעילים | 2. מנויים פעילים | 3. מתעניינים שהומרו ללקוחות |\n'
+            '4. כל המתעניינים | 5. שיעורי ניסיון | 6. מתעניינים אבודים | 7. לקוחות לא פעילים',
+            self
+        )
+        instructionsLabel.setAlignment(Qt.AlignCenter)
+        instructionsLabel.setStyleSheet("margin-top: 10px; font-size: 12pt;")
+        mainLayout.addWidget(instructionsLabel)
 
-        self.label = QLabel(f'1. לקוחות פעילים\n 2. מנויים פעילים \n 3. מתעניינים שהומרו ללקוחות \n 4. כל המתעניינים \n 5. שיעורי ניסיון \n 6. מתעניינים אבודים \n7. לקוחות לא פעילים', self)
-        mainLayout.addWidget(self.label)
-
-        self.uploadButton = QPushButton('בחירת קבצים', self)
-        self.uploadButton.clicked.connect(self.upload_files)
-        mainLayout.addWidget(self.uploadButton)
-
-        self.processButton = QPushButton('Google Sheets - העלה ל', self)
-        self.processButton.clicked.connect(self.process_files)
-        self.processButton.setEnabled(False)
-        mainLayout.addWidget(self.processButton)
-
-        self.openSheetButton = QPushButton('Google Sheets - פתח את', self)
-        self.openSheetButton.clicked.connect(self.open_sheet)
-        self.openSheetButton.setEnabled(True)
-        mainLayout.addWidget(self.openSheetButton)
-
+        # Stats text area
         self.statsText = QTextEdit(self)
         self.statsText.setReadOnly(True)
-
-        # self.statsText.setLayoutDirection(Qt.RightToLeft)
+        self.statsText.setMinimumSize(800, 400)
+        self.statsText.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         mainLayout.addWidget(self.statsText)
 
+        # Set the main layout
         self.setLayout(mainLayout)
+
+        # Connect buttons
+        self.downloadButton.clicked.connect(self.start_download)
+        self.uploadButton.clicked.connect(self.upload_files)
+        self.processButton.clicked.connect(self.process_files)
+        self.openSheetButton.clicked.connect(self.open_sheet)
+
+        # Initialize data directory and file list
         self.data_directory = self.ensure_data_directory_exists()
         self.files = []
 
@@ -190,20 +224,28 @@ class CSVUploaderApp(QWidget):
 
         # Source effectiveness calculation
         source_effectiveness = df['מקור'].value_counts(normalize=True).sort_values(ascending=False) * 100
-        source_effectiveness = source_effectiveness.reset_index(name='אחוזים')
-        source_html = source_effectiveness.to_html(header=True, border=0)
+        source_quantity = df['מקור'].value_counts().sort_values(ascending=False)
+        source_effectiveness = pd.DataFrame({
+            'מקור': source_effectiveness.index,
+            'אחוזים': source_effectiveness.values,
+            'כמות': source_quantity.values
+        })
+
+        # source_effectiveness = source_effectiveness.reset_index(name='אחוזים')
+        source_html = source_effectiveness.to_html(index=False, header=True, border=0)
         source_html = source_html.replace('<table>', "<table>")
 
         # Subscription types calculation
         subscription_types = df['מנוי'].value_counts().reset_index(name='כמות')
-        subscriptions_html = subscription_types.to_html(header=True, border=0)
+        
+        subscriptions_html = subscription_types.to_html(index=False ,header=True, border=0)
         subscriptions_html = subscriptions_html.replace('<table>', "<table>")
         
         # Trial success rate calculation
         if df['עשו ניסיון'].eq('V').sum() > 0:
             did_trial = df['עשו ניסיון'].eq('V').sum()
             did_trial_and_members = (df[(df['עשו ניסיון'] == 'V') & df['מנוי'].notna() & (df['מנוי'] != 'ללא')].shape[0])
-            trial_success_rate = ((df[(df['עשו ניסיון'] == 'V') & df['מנוי'].notna() & (df['מנוי'] != 'ללא')].shape[0]) / df['עשו ניסיון'].eq('V').sum()) * 100
+            trial_success_rate = (did_trial_and_members / did_trial) * 100
         else:
             trial_success_rate = 0
 
@@ -211,14 +253,39 @@ class CSVUploaderApp(QWidget):
         age_distribution = df['גיל'].mean()
 
         # Trials by source calculation
-        trial_by_source = df[df['עשו ניסיון'] == 'V'].groupby('מקור').size().reset_index(name='מספר מתאמנות')
-        trial_by_source_html = trial_by_source.to_html(header=True, border=0)
+        trial_data = df[df['עשו ניסיון'] == 'V']
+        trial_by_source = trial_data.groupby('מקור').size().reset_index(name='מספר מתאמנות')
+
+        subscription_count = (
+            trial_data.groupby('מקור')['מנוי']
+            .apply(lambda x: x.notna().sum())  # Count non-null "מנוי" values
+            .reset_index(name='כמות מנויים')  # Reset index and name the column
+        )
+        trial_by_source = pd.merge(trial_by_source, subscription_count, on='מקור', how='left')
+        trial_by_source_html = trial_by_source.to_html(index=False, header=True, border=0)
         trial_by_source_html = trial_by_source_html.replace('<table>', "<table>")
+        
+
+        coaches_count = df['מאמנים'].value_counts().reset_index(name='כמות')
+        coaches_count.columns = ['מאמנים', 'כמות']
+        subscription_count = (
+            df.groupby('מאמנים')['מנוי']
+            .apply(lambda x: x.notna().sum())  # Count non-null "מנוי" values
+            .reset_index(name='כמות מנויים שסגרו')  # Reset index and name the column
+        )
+
+        coaches_count = pd.merge(coaches_count, subscription_count, on='מאמנים', how='left')
+        
+        coaches_html = coaches_count.to_html(index=False, header=True, border=0)
+        coaches_html = coaches_html.replace('<table>', "<table>")
+
+
 
         # Combine all HTML parts with the CSS header
         stats = f"{css}<div><h2>אחוזי קליטה עבור כל מקור: </h2>{source_html}</div>" \
                 f"<div><h2>מספר אימוני ניסיון שהגיעו עבור כל מקור: </h2>{trial_by_source_html}</div>" \
                 f"<div><h2>סוגי מנויים:</h2>{subscriptions_html}</div>" \
+                 f"<div><h2>מאמנות:</h2>{coaches_html}</div>" \
                 f"<div><h2>הצלחת שיעורי המרה:</h2> <ul><li><h3>מספר המתאמנים שעשו אימון ניסיון: {did_trial}</h3></li><li><h3>מספר מנויים שעשו אימון ניסיון: {did_trial_and_members}</h3></li> <li><h3>הצלחת שיעורי המרה באחוזים: {trial_success_rate:.2f}%</h3></li></ul></div>" \
                 f"<div><h2>ממוצע גילאים: {age_distribution:.2f}</h2></div>"
         return stats
