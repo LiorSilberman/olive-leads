@@ -13,14 +13,15 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from olive_table import merge_csv_files, authenticate_gsheets, upload_to_gsheets, set_column_order
 from auto_download import login_and_download
+from datetime import datetime
 
 class CSVUploaderApp(QWidget):
     def __init__(self):
         super().__init__()
-        load_dotenv()
+        load_dotenv(self.resource_path('.env'))
         self.json_keyfile = os.getenv('JSON_KEYFILE')
         self.sheet_url = os.getenv('SHEET_URL')
-        font_id = QFontDatabase.addApplicationFont("./VarelaRound-Regular.ttf")
+        font_id = QFontDatabase.addApplicationFont(self.resource_path("VarelaRound-Regular.ttf"))
         self.font_name = QFontDatabase.applicationFontFamilies(font_id)[0]
         self.setFont(QFont(self.font_name))
         self.initUI()
@@ -28,7 +29,7 @@ class CSVUploaderApp(QWidget):
     def initUI(self):
         self.setGeometry(300, 300, 1200, 800)
         self.setWindowTitle('Google Sheets - העלאה ל')
-        self.setWindowIcon(QIcon('./logo.png'))
+        self.setWindowIcon(QIcon(self.resource_path('logo.png')))
 
         self.setStyleSheet(f"QWidget {{ background-color: #3d5544; color: #ffffff; font-family: '{self.font_name}'; font-size: 12pt; }}")
 
@@ -39,18 +40,23 @@ class CSVUploaderApp(QWidget):
         topLayout.addStretch(1)  
         
         iconLabel = QLabel(self)
-        pixmap = QPixmap('./logo.png')
+        pixmap = QPixmap(self.resource_path('logo.png'))
         scaled_pixmap = pixmap.scaled(300, 300, Qt.KeepAspectRatio, Qt.SmoothTransformation)
         iconLabel.setPixmap(scaled_pixmap)
         iconLabel.setFixedSize(300, 300)
         topLayout.addWidget(iconLabel)
-        topLayout.addStretch(1)  
+        topLayout.addStretch(1) 
         mainLayout.addLayout(topLayout)
 
 
         self.downloadButton = QPushButton(' Arbox-הורד דוחות אוטומטית מ', self)
         self.downloadButton.clicked.connect(self.start_download)
         mainLayout.addWidget(self.downloadButton)
+
+        self.successLabel = QLabel('', self)  # Empty label for success message
+        self.successLabel.setAlignment(Qt.AlignCenter)  # Center align the text
+        self.successLabel.setStyleSheet("color: green; font-size: 14pt;")  # Style the text
+        mainLayout.addWidget(self.successLabel)
 
         self.label = QLabel('בחר קבצים להעלאה:', self)
         mainLayout.addWidget(self.label)
@@ -69,12 +75,12 @@ class CSVUploaderApp(QWidget):
 
         self.openSheetButton = QPushButton('Google Sheets - פתח את', self)
         self.openSheetButton.clicked.connect(self.open_sheet)
-        self.openSheetButton.setEnabled(False)
+        self.openSheetButton.setEnabled(True)
         mainLayout.addWidget(self.openSheetButton)
 
         self.statsText = QTextEdit(self)
         self.statsText.setReadOnly(True)
-        
+
         # self.statsText.setLayoutDirection(Qt.RightToLeft)
         mainLayout.addWidget(self.statsText)
 
@@ -82,6 +88,7 @@ class CSVUploaderApp(QWidget):
         self.data_directory = self.ensure_data_directory_exists()
         self.files = []
 
+   
 
     @asyncSlot()
     async def start_download(self):
@@ -93,15 +100,20 @@ class CSVUploaderApp(QWidget):
             loop = asyncio.get_running_loop()
 
             self.clear_data_directory()
+            
             await loop.run_in_executor(executor, login_and_download)
             self.files = [os.path.join(self.data_directory, f) for f in os.listdir(self.data_directory) if os.path.isfile(os.path.join(self.data_directory, f))]
-            await asyncio.sleep(1)
-            QMessageBox.information(self, 'הורדה הושלמה', 'כל הדוחות הורדו בהצלחה.')
 
-            self.processButton.setEnabled(True)
-            self.openSheetButton.setEnabled(False)
+            await asyncio.sleep(1)
+            start_date = "01/10/2024"
+            today_date = datetime.now().strftime("%d/%m/%Y")
+            self.successLabel.setText(f"הנתונים מעודכנים מתאריך {start_date} עד {today_date}")
+            QMessageBox.information(self, 'הורדה הושלמה', 'כל הדוחות הורדו בהצלחה - לחץ אשר והמתן בסבלנות לסיום התהליך.')
+
+            await self.process_files()
+            
         except Exception as e:
-            QMessageBox.critical(self, 'שגיאה בהורדה', f'אירעה שגיאה במהלך ההורדה: {str(e)}')
+            QMessageBox.critical(self, 'שגיאה בהורדה', f'אירעה שגיאה במהלך ההורדה: באפשרותך לנסות שוב או להעלות קבצים בצורה ידנית')
 
     @asyncSlot()
     async def upload_files(self):
@@ -115,7 +127,6 @@ class CSVUploaderApp(QWidget):
                 shutil.copy(file_path, self.data_directory)
                 self.files.append(os.path.join(self.data_directory, os.path.basename(file_path)))
             self.processButton.setEnabled(True)
-            self.openSheetButton.setEnabled(False)
             await asyncio.sleep(0)
             QMessageBox.information(self, 'קבצים נבחרו', f'הועתקו {len(self.files)} קבצים לתיקייה.')
         else:
@@ -137,7 +148,6 @@ class CSVUploaderApp(QWidget):
             upload_to_gsheets(final_df, gc, self.sheet_url)
             self.statsText.setHtml(stats)  # Display the statistics
             QMessageBox.information(self, 'העלאה הושלמה', 'Google Sheets - הנתונים הועלו ל\nכעת ניתן לפתוח את הגיליון.')
-            self.openSheetButton.setEnabled(True)
         else:
             QMessageBox.critical(self, 'שגיאה', 'נכשל בתהליך העיבוד וההעלאה של הקבצים.')
 
@@ -199,7 +209,7 @@ class CSVUploaderApp(QWidget):
 
 
         age_distribution = df['גיל'].mean()
-        
+
         # Trials by source calculation
         trial_by_source = df[df['עשו ניסיון'] == 'V'].groupby('מקור').size().reset_index(name='מספר מתאמנות')
         trial_by_source_html = trial_by_source.to_html(header=True, border=0)
@@ -213,15 +223,23 @@ class CSVUploaderApp(QWidget):
                 f"<div><h2>ממוצע גילאים: {age_distribution:.2f}</h2></div>"
         return stats
 
+    
+    @staticmethod
+    def resource_path(relative_path):
+        try:
+            base_path = sys._MEIPASS
+        except Exception:
+            base_path = os.path.abspath(".")
+        
+        return os.path.join(base_path, relative_path)
 
     @staticmethod
     def get_downloads_folder():
         home = os.path.expanduser("~")
         return os.path.join(home, 'Downloads')
 
-    @staticmethod
-    def ensure_data_directory_exists():
-        data_directory = os.path.join(os.getcwd(), 'data')
+    def ensure_data_directory_exists(self):
+        data_directory = self.resource_path('data')
         if not os.path.exists(data_directory):
             os.makedirs(data_directory)
         return data_directory
