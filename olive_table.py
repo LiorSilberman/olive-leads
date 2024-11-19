@@ -3,13 +3,11 @@ import numpy as np
 import gspread
 from pathlib import Path
 from oauth2client.service_account import ServiceAccountCredentials
-from dotenv import load_dotenv
 import os
+from dotenv import load_dotenv
 import re
 
-
 load_dotenv()
-
 
 def set_column_order(df, column_order):
     """
@@ -38,14 +36,20 @@ def column_to_letter(n):
     return result
 
 
+def resource_path(relative_path):
+        try:
+            base_path = sys._MEIPASS
+        except Exception:
+            base_path = os.path.abspath(".")
+        
+        return os.path.join(base_path, relative_path)
 
-import pandas as pd
-from pathlib import Path
 
 def merge_csv_files(directory):
     data_dir = Path(directory)
     dataframes = []
     trial_leads = None
+    resource_temp_file = resource_path('resource_fix.csv')
     files_translate = {
         'active-members-report': 'לקוחות פעילים',
         'active-memberships-report': 'מנויים פעילים',
@@ -64,13 +68,29 @@ def merge_csv_files(directory):
         df['קובץ מקור'] = translated_name
         if 'trial' in base_name:
             trial_leads = df
-
+            # TODO - sort by "תאריך" col and drop duplicate rows by same Normalized Phone (stay with the first one)
+            trial_leads['Normalized Phone'] = trial_leads['טלפון'].astype(str).apply(lambda x: x[-6:])
+            trial_leads['תאריך'] = pd.to_datetime(trial_leads['תאריך'], format='%d/%m/%Y', errors='coerce')
+            trial_leads = (
+                trial_leads.sort_values(by='תאריך', ascending=False)  # Sort by the date column
+                .drop_duplicates(subset=['Normalized Phone'], keep='first')  # Drop duplicates
+            )
+            df = trial_leads
         dataframes.append(df)
 
     if not dataframes:
         return None
+
+
+    # read from resource_temp.csv and add it to dataframes
+    resource_df = pd.read_csv(resource_temp_file)
+    resource_df['טלפון'] = resource_df['טלפון'].apply(lambda x: '0' + x if x.startswith('5') else x)
+    dataframes.append(resource_df)
+
     merged_df = pd.concat(dataframes, ignore_index=True)
     merged_df['Normalized Phone'] = merged_df['טלפון'].astype(str).apply(lambda x: x[-6:])
+
+    
 
     merged_df['נוצר בתאריך'] = pd.to_datetime(merged_df['נוצר בתאריך'], format='%d/%m/%Y', errors='coerce')
     aggregations_corrected = {
@@ -102,6 +122,7 @@ def merge_csv_files(directory):
         else x.lower().replace('website', 'whatsapp') if isinstance(x, str) and x.isascii()
         else x
     )
+
 
     # Replace ages under 15 with the mean age
     if 'גיל' in cleaned_data_corrected.columns:
