@@ -1,4 +1,5 @@
 import os
+import sys
 import shutil
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -13,7 +14,17 @@ from datetime import datetime
 from dotenv import load_dotenv
 
 
-load_dotenv()
+def resource_path(relative_path):
+    """Get the absolute path to a resource, works for dev and PyInstaller."""
+    try:
+        # If running as a PyInstaller bundle
+        base_path = sys._MEIPASS
+    except AttributeError:
+        # If running as a script
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
+
+load_dotenv(resource_path('.env'))
 
 start_date = "2024-10-01"
 today_date = datetime.now().strftime("%Y-%m-%d")
@@ -33,6 +44,7 @@ urls = [url.format(start_date, today_date) for url in url_to_button_xpath.keys()
 
 def setup_driver():
     chrome_options = Options()
+    chrome_options.add_argument("--start-maximized")
     current_directory = os.path.dirname(os.path.realpath(__file__))
     download_directory = os.path.join(current_directory, "data")
     
@@ -70,14 +82,15 @@ def download_report(driver, url):
     driver.get(url)
     time.sleep(1)
     driver.refresh()
-    actions_button = WebDriverWait(driver, 10).until(
+    time.sleep(7)
+    actions_button = WebDriverWait(driver, 20).until(
         EC.element_to_be_clickable((By.XPATH, button_xpath))
     )
         
     actions_button.click()
 
     # Wait for the dropdown and the download button to appear
-    WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, '//*[@id="csv"]')))
+    WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, '//*[@id="csv"]')))
     download_button = driver.find_element(By.XPATH, '//*[@id="csv"]')
 
     if download_button:
@@ -88,12 +101,14 @@ def download_report(driver, url):
 
 
 def login(driver):
-    data_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "data")
-    clear_data_directory(data_directory)
+    # data_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "data")
+    # clear_data_directory(data_directory)
     driver.get("https://manage.arboxapp.com/login")
     
+    time.sleep(2)
+
     # Use WebDriverWait to ensure the page has loaded
-    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, '//*[@id="native-base-main-view"]/div[2]/div[8]/div[1]/input')))
+    WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.XPATH, '//*[@id="native-base-main-view"]/div[2]/div[8]/div[1]/input')))
 
     username = driver.find_element(By.XPATH, '//*[@id="native-base-main-view"]/div[2]/div[8]/div[1]/input')
     password = driver.find_element(By.XPATH, '//*[@id="native-base-main-view"]/div[2]/div[8]/div[3]/span/input')
@@ -102,7 +117,9 @@ def login(driver):
     password.send_keys(os.getenv('PASSWORD'))
     password.send_keys(Keys.RETURN)
 
-    time.sleep(5)
+    time.sleep(2)
+
+
 
 def login_and_download():
     driver = setup_driver()
@@ -110,7 +127,7 @@ def login_and_download():
 
     for url in urls:
         download_report(driver, url)
-        time.sleep(5)
+        time.sleep(3)
 
     driver.quit()
 
