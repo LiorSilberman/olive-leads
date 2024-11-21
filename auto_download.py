@@ -46,6 +46,10 @@ urls = [url.format(start_date, today_date) for url in url_to_button_xpath.keys()
 def setup_driver():
     chrome_options = Options()
     chrome_options.add_argument("--start-maximized")
+    chrome_options.add_argument("--headless")  # Enable headless mode
+    chrome_options.add_argument("--disable-gpu")  # For better compatibility on some systems
+    chrome_options.add_argument("--no-sandbox")  # Useful for running in Docker or restricted environments
+    chrome_options.add_argument("--disable-dev-shm-usage")  # Avoid resource issues in headless mode
     current_directory = os.path.dirname(os.path.realpath(__file__))
     download_directory = os.path.join(current_directory, "data")
     
@@ -83,7 +87,7 @@ def download_report(driver, url):
     driver.get(url)
     time.sleep(1)
     driver.refresh()
-    time.sleep(7)
+    # time.sleep(7)
     actions_button = WebDriverWait(driver, 20).until(
         EC.element_to_be_clickable((By.XPATH, button_xpath))
     )
@@ -106,7 +110,7 @@ def login(driver):
     # clear_data_directory(data_directory)
     driver.get("https://manage.arboxapp.com/login")
     
-    time.sleep(2)
+    # time.sleep(2)
 
     # Use WebDriverWait to ensure the page has loaded
     WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.XPATH, '//*[@id="native-base-main-view"]/div[2]/div[8]/div[1]/input')))
@@ -122,15 +126,26 @@ def login(driver):
 
 
 
-def login_and_download():
+def login_and_download(update_message=None):
     driver = setup_driver()
-    login(driver)
 
-    for url in urls:
-        download_report(driver, url)
-        time.sleep(3)
+    try:
+        if update_message:
+            update_message('מתחבר לחשבון...', 0)
+        login(driver)
 
-    driver.quit()
+        for i, url in enumerate(urls, start=1):
+            if update_message:
+                update_message(f'מוריד דוח מספר: {i}/{len(urls)}', i * (100 // len(urls)))
+            download_report(driver, url)
+            time.sleep(3)
+
+        if update_message:
+            update_message('סיום ההורדה', 100)
+    finally:
+        driver.quit()
+
+
 
 if __name__ == "__main__":
     login_and_download()

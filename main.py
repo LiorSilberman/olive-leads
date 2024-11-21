@@ -5,7 +5,7 @@ import shutil
 from pathlib import Path
 import webbrowser
 import pandas as pd
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QFileDialog, QMessageBox, QTextEdit, QSizePolicy
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QFileDialog, QMessageBox, QTextEdit, QSizePolicy, QProgressBar
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIcon, QPixmap, QFont, QFontDatabase
 from dotenv import load_dotenv
@@ -72,6 +72,10 @@ class CSVUploaderApp(QWidget):
         logoLayout.addStretch(1)
         mainLayout.addLayout(logoLayout)
 
+       
+
+        
+
         # Buttons layout
         buttonLayout = QHBoxLayout()
         self.showSummaryButton = QPushButton('הדפס סיכום', self)
@@ -79,8 +83,8 @@ class CSVUploaderApp(QWidget):
         self.uploadButton = QPushButton('בחירת קבצים', self)
         self.processButton = QPushButton('Google Sheets - העלה ל', self)
         self.openSheetButton = QPushButton('Google Sheets - פתח את', self)
-        self.processButton.setEnabled(False)  # Disabled by default
-        self.openSheetButton.setEnabled(True)  # Disabled by default
+        self.processButton.setEnabled(False)
+        self.openSheetButton.setEnabled(True)
         buttonLayout.addWidget(self.showSummaryButton)
         buttonLayout.addWidget(self.downloadButton)
         buttonLayout.addWidget(self.processButton)
@@ -91,19 +95,30 @@ class CSVUploaderApp(QWidget):
         # Success label
         self.successLabel = QLabel('', self)
         self.successLabel.setAlignment(Qt.AlignCenter)
-        self.successLabel.setStyleSheet("color: green; font-size: 14pt; font-weight: bold;")
+        self.successLabel.setStyleSheet("color: white; font-size: 14pt; font-weight: bold;")
         mainLayout.addWidget(self.successLabel)
 
-        # Instructions label
-        instructionsLabel = QLabel(
-            'בחר קבצים להעלאה:\n'
-            '1. לקוחות פעילים | 2. מנויים פעילים | 3. מתעניינים שהומרו ללקוחות |\n'
-            '4. כל המתעניינים | 5. שיעורי ניסיון | 6. מתעניינים אבודים | 7. לקוחות לא פעילים',
-            self
-        )
-        instructionsLabel.setAlignment(Qt.AlignCenter)
-        instructionsLabel.setStyleSheet("margin-top: 10px; font-size: 12pt;")
-        mainLayout.addWidget(instructionsLabel)
+
+        self.progressBar = QProgressBar(self)
+        self.progressBar.setFixedSize(200, 20)  # Smaller width and height
+        self.progressBar.setValue(0)  # Start at 0%
+        self.progressBar.setVisible(False)  # Hide initially
+        mainLayout.addWidget(self.progressBar, alignment=Qt.AlignCenter) 
+
+        self.progressBar.setStyleSheet("""
+            QProgressBar {
+                border: 2px solid #3D5544;  /* Border color */
+                border-radius: 5px;  /* Rounded corners */
+                text-align: center;  /* Text in the center */
+                background-color: #e0eae3;  /* Background color */
+                color: black;
+            }
+            QProgressBar::chunk {
+                border: 2px 2px solid #3D5544;
+                background-color: #64c228;  /* Progress bar color */
+                width: 20px;  /* Chunk size */
+            }
+        """)
 
         # Stats text area
         self.statsText = QTextEdit(self)
@@ -122,6 +137,8 @@ class CSVUploaderApp(QWidget):
         self.processButton.clicked.connect(self.process_files)
         self.openSheetButton.clicked.connect(self.open_sheet)
 
+
+
         # Initialize data directory and file list
         self.data_directory = self.ensure_data_directory_exists()
         self.files = []
@@ -130,28 +147,39 @@ class CSVUploaderApp(QWidget):
 
     @asyncSlot()
     async def start_download(self):
-        QMessageBox.information(self, 'התחלת הורדה', 'ההורדות מתחילות כעת...')
         await asyncio.sleep(0)  # Yield control to ensure UI updates before starting the download
         try:
-            # Use ThreadPoolExecutor to run the blocking function in a separate thread
             executor = ThreadPoolExecutor(max_workers=1)
             loop = asyncio.get_running_loop()
+            # self.statusLabel.setVisible(True)
+            self.progressBar.setVisible(True)  # Show the progress bar
+            self.progressBar.setValue(0)  # Reset progress bar
+
+            def update_message(message, progress=None):
+                """Update the status label and progress bar."""
+                # self.statusLabel.setText(f"סטטוס: {message}")
+                if progress is not None:
+                    self.progressBar.setValue(progress)
+                QApplication.processEvents()  # Ensure immediate UI updates
 
             self.clear_data_directory()
             
-            await loop.run_in_executor(executor, login_and_download)
+            await loop.run_in_executor(executor, lambda: login_and_download(update_message))
             self.files = [os.path.join(self.data_directory, f) for f in os.listdir(self.data_directory) if os.path.isfile(os.path.join(self.data_directory, f))]
 
             await asyncio.sleep(1)
+
             start_date = "01/10/2024"
             today_date = datetime.now().strftime("%d/%m/%Y")
             self.successLabel.setText(f"הנתונים מעודכנים מתאריך {start_date} עד {today_date}")
-            QMessageBox.information(self, 'הורדה הושלמה', 'כל הדוחות הורדו בהצלחה - לחץ אשר והמתן בסבלנות לסיום התהליך.')
 
-            await self.process_files()
+            await self.process_files(update_message)
             
         except Exception as e:
-            QMessageBox.critical(self, 'שגיאה בהורדה', f'אירעה שגיאה במהלך ההורדה: באפשרותך לנסות שוב או להעלות קבצים בצורה ידנית')
+            QMessageBox.critical(self, 'שגיאה בהורדה', f'אירעה שגיאה במהלך ההורדה: {str(e)}')
+        finally:
+            self.progressBar.setVisible(False)  # Hide the progress bar when done
+
 
     @asyncSlot()
     async def upload_files(self):
@@ -172,20 +200,26 @@ class CSVUploaderApp(QWidget):
 
         
     @asyncSlot()
-    async def process_files(self):
+    async def process_files(self, update_message=None):
         if not self.files:
             QMessageBox.critical(self, 'לא נבחרו קבצים', 'לא נבחרו קבצים לעיבוד.')
             return
-
+        
+        # update_message('מייצר קובץ אחיד..')
+        update_message(f'מייצר קובץ אחיד..', 0)
         merged_df = merge_csv_files(self.data_directory)
+        update_message('קובץ אחיד מוכן', 30)
         if merged_df is not None:
+            update_message('מחשב סיכום סטטיקה', 50)
             stats = await self.calculate_statistics(merged_df)
+            update_message('סיכום סטטיקה מוכן', 70)
             gc = authenticate_gsheets(self.json_keyfile)
             column_order = ['נוצר בתאריך', 'שם', 'טלפון', 'מקור', 'סטטוס', 'סיבות התנגדות', 'מפגש ניסיון', 'עשו ניסיון', 'רלוונטי', 'מנוי', 'גיל', 'קובץ מקור']
             final_df = set_column_order(merged_df, column_order)
+            update_message('מעלה טבלה ל- google sheets', 95)
             upload_to_gsheets(final_df, gc, self.sheet_url)
-            self.statsText.setHtml(stats)  # Display the statistics
-            QMessageBox.information(self, 'העלאה הושלמה', 'Google Sheets - הנתונים הועלו ל\nכעת ניתן לפתוח את הגיליון.')
+            update_message('העלאה הושלמה בהצלחה!', 100)
+            self.statsText.setHtml(stats)
         else:
             QMessageBox.critical(self, 'שגיאה', 'נכשל בתהליך העיבוד וההעלאה של הקבצים.')
 
@@ -240,8 +274,8 @@ class CSVUploaderApp(QWidget):
         source_quantity = df['מקור'].value_counts().sort_values(ascending=False)
         source_effectiveness = pd.DataFrame({
             'מקור': source_effectiveness.index,
-            'אחוזים': source_effectiveness.values,
-            'כמות': source_quantity.values
+            'כמות': source_quantity.values,
+            'אחוזים': source_effectiveness.values.round(2)
         })
 
         # source_effectiveness = source_effectiveness.reset_index(name='אחוזים')
@@ -250,7 +284,11 @@ class CSVUploaderApp(QWidget):
 
         # Subscription types calculation
         subscription_types = df['מנוי'].value_counts().reset_index(name='כמות')
-        
+        subscription_types.columns = ['מנוי', 'כמות']
+        total_subscriptions = subscription_types['כמות'].sum()
+        subscription_types['אחוז מסך כלל המנויים'] = (subscription_types['כמות'] / total_subscriptions) * 100
+        subscription_types['אחוז מסך כלל המנויים'] = subscription_types['אחוז מסך כלל המנויים'].round(2)
+
         subscriptions_html = subscription_types.to_html(index=False ,header=True, border=0)
         subscriptions_html = subscriptions_html.replace('<table>', "<table>")
         
@@ -274,9 +312,15 @@ class CSVUploaderApp(QWidget):
             .apply(lambda x: x.notna().sum() - (x == "ללא").sum())
             .reset_index(name='כמות מנויים')
         )
+        trial_summary = pd.merge(trial_by_source, subscription_count, on='מקור', how='left')
 
-        trial_by_source = pd.merge(trial_by_source, subscription_count, on='מקור', how='left')
-        trial_by_source_html = trial_by_source.to_html(index=False, header=True, border=0)
+        # Add percentage column
+        trial_summary['אחוז מנויים'] = (trial_summary['כמות מנויים'] / trial_summary['מספר מתאמנות']) * 100
+
+        # Optional: Round the percentage for better readability
+        trial_summary['אחוז מנויים'] = trial_summary['אחוז מנויים'].round(2)
+        
+        trial_by_source_html = trial_summary.to_html(index=False, header=True, border=0)
         trial_by_source_html = trial_by_source_html.replace('<table>', "<table>")
         
 
@@ -289,7 +333,8 @@ class CSVUploaderApp(QWidget):
         )
 
         coaches_count = pd.merge(coaches_count, subscription_count, on='מאמנים', how='left')
-        
+        coaches_count['אחוזי סגירה'] = (coaches_count['כמות מנויים שסגרו'] / coaches_count['כמות']) * 100
+        coaches_count['אחוזי סגירה'] = coaches_count['אחוזי סגירה'].round(2)
         coaches_html = coaches_count.to_html(index=False, header=True, border=0)
         coaches_html = coaches_html.replace('<table>', "<table>")
 
