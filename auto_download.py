@@ -36,7 +36,8 @@ url_to_button_xpath = {
         f"https://manage.arboxapp.com/reports-v5/active-memberships-report?created_at_user_box={start_date}%2C{today_date}": '//*[@id="native-base-main-view"]/div/div/div[1]/div[2]/div[2]/div/div[1]/div/div/div[1]/div/div[2]/div/div[3]/div/div/button',
         f"https://manage.arboxapp.com/reports-v5/converted-leads-report?last_modified={start_date}%2C{today_date}": '//*[@id="native-base-main-view"]/div/div/div[1]/div[2]/div[2]/div/div[1]/div/div/div[1]/div/div[2]/div/div[3]/div/div/button',
         f"https://manage.arboxapp.com/reports-v5/inactive-members-report?unactiveFrom={start_date}%2C{today_date}": '//*[@id="native-base-main-view"]/div/div/div[1]/div[2]/div[2]/div/div[1]/div/div/div[1]/div/div[2]/div/div[3]/div/div/button',
-        f"https://manage.arboxapp.com/reports-v5/lost-leads-report?updated_at={start_date}%2C{today_date}": '//*[@id="native-base-main-view"]/div/div/div[1]/div[2]/div[2]/div/div[1]/div/div/div[1]/div/div[2]/div/div[3]/div/div/button'
+        f"https://manage.arboxapp.com/reports-v5/lost-leads-report?updated_at={start_date}%2C{today_date}": '//*[@id="native-base-main-view"]/div/div/div[1]/div[2]/div[2]/div/div[1]/div/div/div[1]/div/div[2]/div/div[3]/div/div/button',
+        f"https://manage.arboxapp.com/reports-v5/future-memberships-report": '//*[@id="native-base-main-view"]/div/div/div[1]/div[2]/div[2]/div/div[1]/div/div/div[1]/div/div[2]/div/div[3]/div/div/button'
 }
 
 

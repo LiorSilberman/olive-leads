@@ -2,6 +2,7 @@ import sys
 import os
 # os.environ["QT_QPA_PLATFORM"] = "xcb"
 import shutil
+from pathlib import Path
 import webbrowser
 import pandas as pd
 from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QFileDialog, QMessageBox, QTextEdit, QSizePolicy
@@ -73,12 +74,14 @@ class CSVUploaderApp(QWidget):
 
         # Buttons layout
         buttonLayout = QHBoxLayout()
+        self.showSummaryButton = QPushButton('הדפס סיכום', self)
         self.downloadButton = QPushButton('Arbox - הורד דוחות אוטומטית מ', self)
         self.uploadButton = QPushButton('בחירת קבצים', self)
         self.processButton = QPushButton('Google Sheets - העלה ל', self)
         self.openSheetButton = QPushButton('Google Sheets - פתח את', self)
         self.processButton.setEnabled(False)  # Disabled by default
         self.openSheetButton.setEnabled(True)  # Disabled by default
+        buttonLayout.addWidget(self.showSummaryButton)
         buttonLayout.addWidget(self.downloadButton)
         buttonLayout.addWidget(self.processButton)
         buttonLayout.addWidget(self.uploadButton)
@@ -113,6 +116,7 @@ class CSVUploaderApp(QWidget):
         self.setLayout(mainLayout)
 
         # Connect buttons
+        self.showSummaryButton.clicked.connect(self.display_summary)
         self.downloadButton.clicked.connect(self.start_download)
         self.uploadButton.clicked.connect(self.upload_files)
         self.processButton.clicked.connect(self.process_files)
@@ -184,6 +188,15 @@ class CSVUploaderApp(QWidget):
             QMessageBox.information(self, 'העלאה הושלמה', 'Google Sheets - הנתונים הועלו ל\nכעת ניתן לפתוח את הגיליון.')
         else:
             QMessageBox.critical(self, 'שגיאה', 'נכשל בתהליך העיבוד וההעלאה של הקבצים.')
+
+    @asyncSlot()
+    async def display_summary(self):
+        sheets_data_dir = Path(self.resource_path('sheets_data'))
+        output_file = sheets_data_dir / 'cleaned_data_corrected.csv'
+        df = pd.read_csv(self.resource_path(output_file))
+        stats = await self.calculate_statistics(df)
+        self.statsText.setHtml(stats)
+        QMessageBox.information(self, 'הדפסה הושלמה', 'כעת תוכל לצפות בסיכומים')
 
     def open_sheet(self):
         webbrowser.open_new(self.sheet_url)
@@ -258,9 +271,10 @@ class CSVUploaderApp(QWidget):
 
         subscription_count = (
             trial_data.groupby('מקור')['מנוי']
-            .apply(lambda x: x.notna().sum())  # Count non-null "מנוי" values
-            .reset_index(name='כמות מנויים')  # Reset index and name the column
+            .apply(lambda x: x.notna().sum() - (x == "ללא").sum())
+            .reset_index(name='כמות מנויים')
         )
+
         trial_by_source = pd.merge(trial_by_source, subscription_count, on='מקור', how='left')
         trial_by_source_html = trial_by_source.to_html(index=False, header=True, border=0)
         trial_by_source_html = trial_by_source_html.replace('<table>', "<table>")
@@ -270,8 +284,8 @@ class CSVUploaderApp(QWidget):
         coaches_count.columns = ['מאמנים', 'כמות']
         subscription_count = (
             df.groupby('מאמנים')['מנוי']
-            .apply(lambda x: x.notna().sum())  # Count non-null "מנוי" values
-            .reset_index(name='כמות מנויים שסגרו')  # Reset index and name the column
+            .apply(lambda x: x.notna().sum()) 
+            .reset_index(name='כמות מנויים שסגרו') 
         )
 
         coaches_count = pd.merge(coaches_count, subscription_count, on='מאמנים', how='left')

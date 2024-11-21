@@ -57,7 +57,8 @@ def merge_csv_files(directory):
         'all-leads-report': 'כל המתעניינים', 
         'trial-classes-report': 'שיעורי ניסיון',
         'lost-leads-report': 'מתעניינים אבודים',
-        'inactive-members-report': 'לקוחות לא פעילים'
+        'inactive-members-report': 'לקוחות לא פעילים',
+        'future-memberships-report': 'מנויים עתידיים'
     }
 
     # Iterate over each file in the directory and append it to the dataframe list
@@ -68,7 +69,6 @@ def merge_csv_files(directory):
         df['קובץ מקור'] = translated_name
         if 'trial' in base_name:
             trial_leads = df
-            # TODO - sort by "תאריך" col and drop duplicate rows by same Normalized Phone (stay with the first one)
             trial_leads['Normalized Phone'] = trial_leads['טלפון'].astype(str).apply(lambda x: x[-6:])
             trial_leads['תאריך'] = pd.to_datetime(trial_leads['תאריך'], format='%d/%m/%Y', errors='coerce')
             trial_leads = (
@@ -95,7 +95,8 @@ def merge_csv_files(directory):
     merged_df['נוצר בתאריך'] = pd.to_datetime(merged_df['נוצר בתאריך'], format='%d/%m/%Y', errors='coerce')
     aggregations_corrected = {
         col: (
-            lambda x: ', '.join(sorted(set(x.dropna()))) if x.dtype == object and not x.dropna().empty else
+            lambda x: ', '.join(sorted(set(map(str, x.dropna()))))  # Convert all values to strings before joining
+            if x.dtype == object and not x.dropna().empty else
             min(x.dropna()) if not x.dropna().empty and np.issubdtype(x.dtype, np.datetime64) else
             x.dropna().iloc[0] if not x.dropna().empty else
             np.nan
@@ -141,6 +142,13 @@ def merge_csv_files(directory):
     if trial_leads is not None:
         trial_phones = set(trial_leads['טלפון'].astype(str).apply(lambda x: x[-6:]))  # Normalize phone numbers in trial_leads
         cleaned_data_corrected['עשו ניסיון'] = cleaned_data_corrected['Normalized Phone'].apply(lambda x: 'V' if x in trial_phones else '')
+
+
+    sheets_data_dir = Path(resource_path('sheets_data'))
+    sheets_data_dir.mkdir(parents=True, exist_ok=True)
+
+    output_file = sheets_data_dir / 'cleaned_data_corrected.csv'
+    cleaned_data_corrected.to_csv(output_file, index=False, encoding='utf-8-sig')
 
     return cleaned_data_corrected
 
