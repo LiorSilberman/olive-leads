@@ -160,7 +160,7 @@ class CSVUploaderApp(QWidget):
                 # self.statusLabel.setText(f"סטטוס: {message}")
                 if progress is not None:
                     self.progressBar.setValue(progress)
-                QApplication.processEvents()  # Ensure immediate UI updates
+                QApplication.processEvents() 
 
             self.clear_data_directory()
             
@@ -169,7 +169,7 @@ class CSVUploaderApp(QWidget):
 
             await asyncio.sleep(1)
 
-            start_date = "01/10/2024"
+            start_date = "01/09/2024"
             today_date = datetime.now().strftime("%d/%m/%Y")
             self.successLabel.setText(f"הנתונים מעודכנים מתאריך {start_date} עד {today_date}")
 

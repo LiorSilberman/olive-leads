@@ -26,7 +26,7 @@ def resource_path(relative_path):
 
 load_dotenv(resource_path('.env'))
 
-start_date = "2024-10-01"
+start_date = "2024-09-01"
 today_date = datetime.now().strftime("%Y-%m-%d")
 
 url_to_button_xpath = {
