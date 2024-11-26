@@ -50,6 +50,7 @@ def merge_csv_files(directory):
     data_dir = Path(directory)
     dataframes = []
     trial_leads = None
+
     resource_temp_file = resource_path('resource_fix.csv')
     files_translate = {
         'active-members-report': 'לקוחות פעילים',
@@ -59,7 +60,8 @@ def merge_csv_files(directory):
         'trial-classes-report': 'שיעורי ניסיון',
         'lost-leads-report': 'מתעניינים אבודים',
         'inactive-members-report': 'לקוחות לא פעילים',
-        'future-memberships-report': 'מנויים עתידיים'
+        'future-memberships-report': 'מנויים עתידיים',
+        'expired-memberships-report': 'מנויים שהסתיימו'
     }
 
     # Iterate over each file in the directory and append it to the dataframe list
@@ -77,6 +79,15 @@ def merge_csv_files(directory):
                 .drop_duplicates(subset=['Normalized Phone'], keep='first')  # Drop duplicates
             )
             df = trial_leads
+
+        if 'expired' in base_name:
+            df['Normalized Phone'] = df['טלפון'].astype(str).apply(lambda x: x[-6:])
+            df.drop('מנוי', axis=1, inplace=True)
+            df = (
+                df.sort_values(by='תאריך סיום', ascending=False)
+                .drop_duplicates(subset=['Normalized Phone'], keep='first')
+            )
+
         dataframes.append(df)
 
     if not dataframes:
@@ -123,7 +134,7 @@ def merge_csv_files(directory):
         ) if isinstance(x, str) and any(item.strip() != 'ללא מקור' for item in x.split(',')) 
         else x.lower().replace('website', 'whatsapp') if isinstance(x, str) and x.isascii()
         else x
-    )
+    ).fillna('ללא מקור').replace('', 'ללא מקור')
 
 
     # Replace ages under 15 with the mean age
@@ -143,6 +154,12 @@ def merge_csv_files(directory):
     if trial_leads is not None:
         trial_phones = set(trial_leads['טלפון'].astype(str).apply(lambda x: x[-6:]))  # Normalize phone numbers in trial_leads
         cleaned_data_corrected['עשו ניסיון'] = cleaned_data_corrected['Normalized Phone'].apply(lambda x: 'V' if x in trial_phones else '')
+
+
+    # Add 'יש מנוי' column based on conditions in 'קובץ מקור'
+    cleaned_data_corrected['יש מנוי'] = cleaned_data_corrected['קובץ מקור'].apply(
+        lambda x: 'V' if 'מנויים עתידיים' in x or 'מנויים פעילים' in x else ''
+    )
 
 
     sheets_data_dir = Path(resource_path('sheets_data'))

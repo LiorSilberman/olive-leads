@@ -12,17 +12,8 @@ from webdriver_manager.chrome import ChromeDriverManager
 import time
 from datetime import datetime
 from dotenv import load_dotenv
+from utils import resource_path
 
-
-def resource_path(relative_path):
-    """Get the absolute path to a resource, works for dev and PyInstaller."""
-    try:
-        # If running as a PyInstaller bundle
-        base_path = sys._MEIPASS
-    except AttributeError:
-        # If running as a script
-        base_path = os.path.abspath(".")
-    return os.path.join(base_path, relative_path)
 
 load_dotenv(resource_path('.env'))
 
@@ -37,13 +28,21 @@ url_to_button_xpath = {
         f"https://manage.arboxapp.com/reports-v5/converted-leads-report?last_modified={start_date}%2C{today_date}": '//*[@id="native-base-main-view"]/div/div/div[1]/div[2]/div[2]/div/div[1]/div/div/div[1]/div/div[2]/div/div[3]/div/div/button',
         f"https://manage.arboxapp.com/reports-v5/inactive-members-report?unactiveFrom={start_date}%2C{today_date}": '//*[@id="native-base-main-view"]/div/div/div[1]/div[2]/div[2]/div/div[1]/div/div/div[1]/div/div[2]/div/div[3]/div/div/button',
         f"https://manage.arboxapp.com/reports-v5/lost-leads-report?updated_at={start_date}%2C{today_date}": '//*[@id="native-base-main-view"]/div/div/div[1]/div[2]/div[2]/div/div[1]/div/div/div[1]/div/div[2]/div/div[3]/div/div/button',
-        f"https://manage.arboxapp.com/reports-v5/future-memberships-report": '//*[@id="native-base-main-view"]/div/div/div[1]/div[2]/div[2]/div/div[1]/div/div/div[1]/div/div[2]/div/div[3]/div/div/button'
+        f"https://manage.arboxapp.com/reports-v5/future-memberships-report": '//*[@id="native-base-main-view"]/div/div/div[1]/div[2]/div[2]/div/div[1]/div/div/div[1]/div/div[2]/div/div[3]/div/div/button',
+        f"https://manage.arboxapp.com/reports-v5/expired-memberships-report?end={start_date}%2C{today_date}": '//*[@id="native-base-main-view"]/div/div/div[1]/div[2]/div[2]/div/div[1]/div/div/div[1]/div/div[2]/div/div[3]/div/div/button'
+        
 }
 
 
 urls = [url.format(start_date, today_date) for url in url_to_button_xpath.keys()]
 
 def setup_driver():
+    """
+    Configures and returns a Selenium WebDriver with Chrome options set for headless operation.
+
+    Returns:
+        WebDriver: A configured instance of Chrome WebDriver with specified options for downloads and headless operation.
+    """
     chrome_options = Options()
     chrome_options.add_argument("--start-maximized")
     chrome_options.add_argument("--headless")  # Enable headless mode
@@ -70,7 +69,12 @@ def setup_driver():
     return driver
 
 def clear_data_directory(directory):
-    """Remove all files in the specified directory."""
+    """
+    Clears all files and subdirectories in the specified directory.
+
+    Args:
+        directory (str): The path to the directory to clear.
+    """
     for filename in os.listdir(directory):
         file_path = os.path.join(directory, filename)
         try:
@@ -83,6 +87,13 @@ def clear_data_directory(directory):
 
 
 def download_report(driver, url):
+    """
+    Navigates to a specified URL and initiates a download by clicking the appropriate buttons using Selenium.
+
+    Args:
+        driver (WebDriver): The Selenium WebDriver used to interact with the web.
+        url (str): The URL to navigate to for downloading the report.
+    """
     button_xpath = url_to_button_xpath[url]
     driver.get(url)
     time.sleep(1)
@@ -106,8 +117,12 @@ def download_report(driver, url):
 
 
 def login(driver):
-    # data_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "data")
-    # clear_data_directory(data_directory)
+    """
+    Logs into the Arbox management system using credentials stored in environment variables.
+
+    Args:
+        driver (WebDriver): The Selenium WebDriver used to perform the login action.
+    """
     driver.get("https://manage.arboxapp.com/login")
     
     # time.sleep(2)
@@ -127,28 +142,34 @@ def login(driver):
 
 
 def login_and_download(update_message=None):
+    """
+    Manages the entire process of logging into the Arbox management system and downloading multiple reports.
+
+    Args:
+        update_message (callable, optional): A function to call with progress updates.
+    """
     driver = setup_driver()
 
     try:
         if update_message:
-            update_message('מתחבר לחשבון...', 0)
+            update_message(0)
         login(driver)
 
         for i, url in enumerate(urls, start=1):
             if update_message:
-                update_message(f'מוריד דוח מספר: {i}/{len(urls)}', i * (100 // len(urls)))
+                update_message(i * (100 // len(urls)))
             download_report(driver, url)
             time.sleep(3)
 
         if update_message:
-            update_message('סיום ההורדה', 100)
+            update_message(100)
     finally:
         driver.quit()
 
 
 
-if __name__ == "__main__":
-    login_and_download()
+# if __name__ == "__main__":
+#     login_and_download()
     
 
     
