@@ -112,7 +112,6 @@ async def process_files(app, update_message=None):
         QMessageBox.critical(app, 'לא נבחרו קבצים', 'לא נבחרו קבצים לעיבוד.')
         return
     
-    # update_message('מייצר קובץ אחיד..')
     update_message(0)
     merged_df = merge_csv_files(app.data_directory)
     update_message(30)
